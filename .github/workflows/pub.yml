@@ -20,7 +20,6 @@ jobs:
           ANDROID_NDK_HOME=$(pwd)/android-ndk-r15c
       - name: Build
         run: |
-          cd build
           sudo apt install gcc-multilib
           ./make_android_luajit_arm64.sh
       - name: UploadJit
