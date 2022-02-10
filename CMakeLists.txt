@@ -1,347 +1,249 @@
-# Tencent is pleased to support the open source community by making xLua available.
-# Copyright (C) 2016 THL A29 Limited, a Tencent company. All rights reserved.
-# Licensed under the MIT License (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
-# http://opensource.org/licenses/MIT
-# Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+cmake_minimum_required(VERSION 2.4.4)
+set(CMAKE_ALLOW_LOOSE_LOOP_CONSTRUCTS ON)
 
-cmake_minimum_required(VERSION 2.8)
+project(zlib C)
 
-if ( WIN32 AND NOT CYGWIN AND NOT ( CMAKE_SYSTEM_NAME STREQUAL "WindowsStore" ) AND NOT ANDROID)
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT" CACHE STRING "")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd" CACHE STRING "")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT" CACHE STRING "")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd" CACHE STRING "")
-endif ()
+set(VERSION "1.2.11")
 
-project(XLua)
-# Find zlib
-if(WIN32)
-    if( WIN64_ZLIB )
-        set(ZLIB_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/windows_zlib/x64/zlib/include)
-        set(ZLIB_LIBRARY ${CMAKE_SOURCE_DIR}/windows_zlib/x64/zlib/lib/zlib.lib)
-    else()
-        set(ZLIB_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/windows_zlib/x86/zlib/include)
-        set(ZLIB_LIBRARY ${CMAKE_SOURCE_DIR}/windows_zlib/x86/zlib/lib/zlib.lib)
-    endif ()
-else()
-    find_package(ZLIB REQUIRED)
+option(ASM686 "Enable building i686 assembly implementation")
+option(AMD64 "Enable building amd64 assembly implementation")
+
+set(INSTALL_BIN_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Installation directory for executables")
+set(INSTALL_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE PATH "Installation directory for libraries")
+set(INSTALL_INC_DIR "${CMAKE_INSTALL_PREFIX}/include" CACHE PATH "Installation directory for headers")
+set(INSTALL_MAN_DIR "${CMAKE_INSTALL_PREFIX}/share/man" CACHE PATH "Installation directory for manual pages")
+set(INSTALL_PKGCONFIG_DIR "${CMAKE_INSTALL_PREFIX}/share/pkgconfig" CACHE PATH "Installation directory for pkgconfig (.pc) files")
+
+include(CheckTypeSize)
+include(CheckFunctionExists)
+include(CheckIncludeFile)
+include(CheckCSourceCompiles)
+enable_testing()
+
+check_include_file(sys/types.h HAVE_SYS_TYPES_H)
+check_include_file(stdint.h    HAVE_STDINT_H)
+check_include_file(stddef.h    HAVE_STDDEF_H)
+
+#
+# Check to see if we have large file support
+#
+set(CMAKE_REQUIRED_DEFINITIONS -D_LARGEFILE64_SOURCE=1)
+# We add these other definitions here because CheckTypeSize.cmake
+# in CMake 2.4.x does not automatically do so and we want
+# compatibility with CMake 2.4.x.
+if(HAVE_SYS_TYPES_H)
+    list(APPEND CMAKE_REQUIRED_DEFINITIONS -DHAVE_SYS_TYPES_H)
+endif()
+if(HAVE_STDINT_H)
+    list(APPEND CMAKE_REQUIRED_DEFINITIONS -DHAVE_STDINT_H)
+endif()
+if(HAVE_STDDEF_H)
+    list(APPEND CMAKE_REQUIRED_DEFINITIONS -DHAVE_STDDEF_H)
+endif()
+check_type_size(off64_t OFF64_T)
+if(HAVE_OFF64_T)
+   add_definitions(-D_LARGEFILE64_SOURCE=1)
+endif()
+set(CMAKE_REQUIRED_DEFINITIONS) # clear variable
+
+#
+# Check for fseeko
+#
+check_function_exists(fseeko HAVE_FSEEKO)
+if(NOT HAVE_FSEEKO)
+    add_definitions(-DNO_FSEEKO)
 endif()
 
-set(zlibexp "")
-string(APPEND zlibexp "ZLIB_INCLUDE_DIRS: " ${ZLIB_INCLUDE_DIRS})
-string(APPEND zlibexp "ZLIB_LIBRARY: " ${ZLIB_LIBRARY})
-message(WARNING ${zlibexp})
-# / Find zlib
+#
+# Check for unistd.h
+#
+check_include_file(unistd.h Z_HAVE_UNISTD_H)
 
-
-
-if ( IOS )
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fembed-bitcode")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fembed-bitcode")
-endif ()
-
-option ( UINT_ESPECIALLY "using custom ulong" OFF )
-option ( USING_LUAJIT "using luajit" OFF )
-option ( GC64 "using gc64" OFF )
-option ( LUAC_COMPATIBLE_FORMAT "compatible format" OFF )
-
-find_path(XLUA_PROJECT_DIR NAMES SConstruct
-    PATHS 
-    ${CMAKE_SOURCE_DIR}
-    NO_DEFAULT_PATH
-    )
-
-MARK_AS_ADVANCED(XLUA_PROJECT_DIR)
-
-if (NOT LUA_VERSION)
-    set(LUA_VERSION "5.3.5")
+if(MSVC)
+    set(CMAKE_DEBUG_POSTFIX "d")
+    add_definitions(-D_CRT_SECURE_NO_DEPRECATE)
+    add_definitions(-D_CRT_NONSTDC_NO_DEPRECATE)
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 
-set(LUA_SRC_PATH lua-${LUA_VERSION}/src)
-set(LUAJIT_SRC_PATH luajit-2.1.0b3/src)
+if(NOT CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_CURRENT_BINARY_DIR)
+    # If we're doing an out of source build and the user has a zconf.h
+    # in their source tree...
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/zconf.h)
+        message(STATUS "Renaming")
+        message(STATUS "    ${CMAKE_CURRENT_SOURCE_DIR}/zconf.h")
+        message(STATUS "to 'zconf.h.included' because this file is included with zlib")
+        message(STATUS "but CMake generates it automatically in the build directory.")
+        file(RENAME ${CMAKE_CURRENT_SOURCE_DIR}/zconf.h ${CMAKE_CURRENT_SOURCE_DIR}/zconf.h.included)
+  endif()
+endif()
 
-#-----------------------------begin External Lib-----------------------------#
+set(ZLIB_PC ${CMAKE_CURRENT_BINARY_DIR}/zlib.pc)
+configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/zlib.pc.cmakein
+		${ZLIB_PC} @ONLY)
+configure_file(	${CMAKE_CURRENT_SOURCE_DIR}/zconf.h.cmakein
+		${CMAKE_CURRENT_BINARY_DIR}/zconf.h @ONLY)
+include_directories(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_SOURCE_DIR})
 
-#begin lua-rapidjson
-set (RAPIDJSON_SRC lua-rapidjson/source/rapidjson.cpp)
-set_property(
-    SOURCE ${RAPIDJSON_SRC}
-    APPEND
-    PROPERTY COMPILE_DEFINITIONS
-    LUA_LIB
-)
-list(APPEND THIRDPART_INC  lua-rapidjson/include)
-set (THIRDPART_SRC ${THIRDPART_SRC} ${RAPIDJSON_SRC})
-#end lua-rapidjson
 
-#begin lua-profobuf
-set (LPB_SRC 
-    lua-protobuf/pb.c
-)
-set_property(
-    SOURCE ${LPB_SRC}
-    APPEND
-    PROPERTY COMPILE_DEFINITIONS
-    LUA_LIB
-)
-list(APPEND THIRDPART_INC lua-protobuf)
-set (THIRDPART_SRC ${THIRDPART_SRC} ${LPB_SRC})
-#end lua-protobuf
+#============================================================================
+# zlib
+#============================================================================
 
-# begine lua-zlib
-set (LZL_SRC 
-    lua-zlib/lua_zlib.c
+set(ZLIB_PUBLIC_HDRS
+    ${CMAKE_CURRENT_BINARY_DIR}/zconf.h
+    zlib.h
 )
-set_property(
-    SOURCE ${LZL_SRC}
-    APPEND
-    PROPERTY COMPILE_DEFINITIONS
-    LUA_LIB
+set(ZLIB_PRIVATE_HDRS
+    crc32.h
+    deflate.h
+    gzguts.h
+    inffast.h
+    inffixed.h
+    inflate.h
+    inftrees.h
+    trees.h
+    zutil.h
 )
-list(APPEND THIRDPART_INC lua-zlib zlib-1.2.11)
-set (THIRDPART_SRC ${THIRDPART_SRC} ${LZL_SRC})
-# end lua-zlib
+set(ZLIB_SRCS
+    adler32.c
+    compress.c
+    crc32.c
+    deflate.c
+    gzclose.c
+    gzlib.c
+    gzread.c
+    gzwrite.c
+    inflate.c
+    infback.c
+    inftrees.c
+    inffast.c
+    trees.c
+    uncompr.c
+    zutil.c
+)
 
-#begin lpeg
-set ( LPEG_SRC
-    lpeg/lpcap.c
-    lpeg/lpcode.c
-    lpeg/lpprint.c
-    lpeg/lptree.c
-    lpeg/lpvm.c
-)
-set_property(
-    SOURCE ${LPEG_SRC}
-    APPEND
-    PROPERTY COMPILE_DEFINITIONS
-    LUA_LIB
-)
-list(APPEND THIRDPART_INC  lpeg)
-set (THIRDPART_SRC ${THIRDPART_SRC} ${LPEG_SRC})
-#end lpeg
-
-#begin FFI
-if (NOT USING_LUAJIT)
-    set (FFI_SRC ffi/parser.c ffi/ctype.c ffi/ffi.c)
-    set_property(
-        SOURCE ${FFI_SRC}
-        APPEND
-        PROPERTY COMPILE_DEFINITIONS
-        LUA_LIB
+if(NOT MINGW)
+    set(ZLIB_DLL_SRCS
+        win32/zlib1.rc # If present will override custom build rule below.
     )
-    list(APPEND THIRDPART_INC  ffi)
-    set (THIRDPART_SRC ${THIRDPART_SRC} ${FFI_SRC})
-endif ()
-#end FFI
+endif()
 
-
-
-
- #-----------------------------end External Lib-----------------------------#
-
-
-if (USING_LUAJIT)
-    
-    if (APPLE AND NOT IOS AND NOT ANDROID)
-        include_directories(
-          ${CMAKE_SOURCE_DIR}
-          lua-5.1.5/src
-          lua-5.1.5/etc
-          ${CMAKE_CURRENT_BINARY_DIR}
-          ${THIRDPART_INC}
-        )
-        set ( LUA_CORE lua-5.1.5/src/lapi.c lua-5.1.5/src/lcode.c lua-5.1.5/src/ldebug.c lua-5.1.5/src/ldo.c lua-5.1.5/src/ldump.c lua-5.1.5/src/lfunc.c 
-          lua-5.1.5/src/lgc.c lua-5.1.5/src/llex.c lua-5.1.5/src/lmem.c lua-5.1.5/src/lobject.c lua-5.1.5/src/lopcodes.c lua-5.1.5/src/lparser.c lua-5.1.5/src/lstate.c 
-          lua-5.1.5/src/lstring.c lua-5.1.5/src/ltable.c lua-5.1.5/src/ltm.c lua-5.1.5/src/lundump.c lua-5.1.5/src/lvm.c lua-5.1.5/src/lzio.c lua-5.1.5/src/lauxlib.c 
-          lua-5.1.5/src/lbaselib.c lua-5.1.5/src/ldblib.c lua-5.1.5/src/liolib.c lua-5.1.5/src/lmathlib.c lua-5.1.5/src/loslib.c lua-5.1.5/src/ltablib.c 
-          lua-5.1.5/src/lstrlib.c lua-5.1.5/src/linit.c lua-5.1.5/src/loadlib.c)
-    else ()
-        include_directories(
-          ${CMAKE_SOURCE_DIR}
-          ${LUAJIT_SRC_PATH}
-          ${CMAKE_CURRENT_BINARY_DIR}
-          ${THIRDPART_INC}
-        )
-
-        set ( LUA_CORE )
-        set_property( SOURCE xlua.c APPEND PROPERTY COMPILE_DEFINITIONS USING_LUAJIT )
+if(CMAKE_COMPILER_IS_GNUCC)
+    if(ASM686)
+        set(ZLIB_ASMS contrib/asm686/match.S)
+    elseif (AMD64)
+        set(ZLIB_ASMS contrib/amd64/amd64-match.S)
     endif ()
-    set ( LUA_LIB )
-else ()
-    set ( LUA_IDSIZE 120 CACHE STRING "gives the maximum size for the description of the source." )
 
-    configure_file ( ${LUA_SRC_PATH}/luaconf.h.in ${CMAKE_CURRENT_BINARY_DIR}/luaconf.h )
-
-    include_directories(
-        ${CMAKE_SOURCE_DIR}
-        ${ZLIB_INCLUDE_DIRS}
-        ${LUA_SRC_PATH}
-        ${CMAKE_CURRENT_BINARY_DIR}
-        ${THIRDPART_INC}
-    )
-
-    aux_source_directory(${LUA_SRC_PATH} LUA_CORE)
-    list(REMOVE_ITEM LUA_CORE ${LUA_SRC_PATH}/lua.c ${LUA_SRC_PATH}/luac.c)
-    set ( LUA_LIB )
-
-    # set ( LUA_CORE ${LUA_SRC_PATH}/lapi.c ${LUA_SRC_PATH}/lcode.c ${LUA_SRC_PATH}/lctype.c ${LUA_SRC_PATH}/ldebug.c ${LUA_SRC_PATH}/ldo.c ${LUA_SRC_PATH}/ldump.c
-    #   ${LUA_SRC_PATH}/lfunc.c ${LUA_SRC_PATH}/lgc.c ${LUA_SRC_PATH}/llex.c ${LUA_SRC_PATH}/lmem.c ${LUA_SRC_PATH}/lobject.c ${LUA_SRC_PATH}/lopcodes.c ${LUA_SRC_PATH}/lparser.c
-    #   ${LUA_SRC_PATH}/lstate.c ${LUA_SRC_PATH}/lstring.c ${LUA_SRC_PATH}/ltable.c ${LUA_SRC_PATH}/ltm.c ${LUA_SRC_PATH}/lundump.c ${LUA_SRC_PATH}/lvm.c ${LUA_SRC_PATH}/lzio.c )
-    # set ( LUA_LIB ${LUA_SRC_PATH}/lauxlib.c ${LUA_SRC_PATH}/lbaselib.c ${LUA_SRC_PATH}/lbitlib.c ${LUA_SRC_PATH}/lcorolib.c ${LUA_SRC_PATH}/ldblib.c
-    #   ${LUA_SRC_PATH}/liolib.c ${LUA_SRC_PATH}/lmathlib.c ${LUA_SRC_PATH}/loslib.c ${LUA_SRC_PATH}/lstrlib.c ${LUA_SRC_PATH}/ltablib.c ${LUA_SRC_PATH}/linit.c
-    #   ${LUA_SRC_PATH}/lutf8lib.c ${LUA_SRC_PATH}/loadlib.c )
-endif ()
-
-set ( LUA_SOCKET
-    luasocket/auxiliar.c
-    luasocket/buffer.c
-    luasocket/except.c
-    luasocket/inet.c
-    luasocket/io.c
-    luasocket/luasocket.c
-    luasocket/mime.c
-    luasocket/options.c
-    luasocket/select.c
-    luasocket/tcp.c
-    luasocket/timeout.c
-    luasocket/udp.c 
-)
-
-if ( WIN32 AND NOT CYGWIN )
-    list (APPEND LUA_SOCKET luasocket/wsocket.c)
-else ( )
-    list (APPEND LUA_SOCKET luasocket/usocket.c)
-endif ( )
-
-set ( XLUA_CORE
-    i64lib.c
-    xlua.c
-)
-
-if (NOT USING_LUAJIT)
-    list (APPEND XLUA_CORE memory_leak_checker.c)
-endif ( )
-
-macro(source_group_by_dir proj_dir source_files)
-    if(MSVC OR APPLE)
-        get_filename_component(sgbd_cur_dir ${proj_dir} ABSOLUTE)
-        foreach(sgbd_file ${${source_files}})
-            get_filename_component(sgbd_abs_file ${sgbd_file} ABSOLUTE)
-            file(RELATIVE_PATH sgbd_fpath ${sgbd_cur_dir} ${sgbd_abs_file})
-            string(REGEX REPLACE "\(.*\)/.*" \\1 sgbd_group_name ${sgbd_fpath})
-            string(COMPARE EQUAL ${sgbd_fpath} ${sgbd_group_name} sgbd_nogroup)
-            string(REPLACE "/" "\\" sgbd_group_name ${sgbd_group_name})
-            if(sgbd_nogroup)
-                set(sgbd_group_name "\\")
-            endif(sgbd_nogroup)
-            source_group(${sgbd_group_name} FILES ${sgbd_file})
-        endforeach(sgbd_file)
-    endif(MSVC OR APPLE)
-endmacro(source_group_by_dir)
-
-source_group_by_dir(${CMAKE_CURRENT_SOURCE_DIR} LUA_SOCKET)
-source_group_by_dir(${CMAKE_CURRENT_SOURCE_DIR} LUA_CORE)
-source_group_by_dir(${CMAKE_CURRENT_SOURCE_DIR} LUA_LIB)
-source_group_by_dir(${CMAKE_CURRENT_SOURCE_DIR} XLUA_CORE)
-
-if (APPLE)
-    if (IOS)
-        set(CMAKE_OSX_ARCHITECTURES "$(ARCHS_STANDARD)")
-        add_library(xlua STATIC
-           ${LUA_CORE}
-           ${LUA_LIB}
-           ${LUA_SOCKET}
-           ${XLUA_CORE}
-           ${THIRDPART_SRC}
-        )
-        set_xcode_property (xlua IPHONEOS_DEPLOYMENT_TARGET "7.0" "all")
-    else ()
-        ADD_DEFINITIONS(-DLUA_USE_MACOSX) #osx platform emmylua debugger must have this option or can not load cpath
-        set(CMAKE_OSX_ARCHITECTURES "$(ARCHS_STANDARD_64_BIT)")
-        add_library(xlua MODULE
-            ${LUA_CORE}
-            ${LUA_LIB}
-            ${LUA_SOCKET}
-            ${XLUA_CORE}
-            ${THIRDPART_SRC}
-        )
-        set_target_properties ( xlua PROPERTIES BUNDLE TRUE )
-        #set_target_properties ( xlua PROPERTIES FRAMEWORK TRUE )
-        #set_target_properties ( xlua PROPERTIES MACOSX_RPATH TRUE )
-    endif ()
-elseif ("${CMAKE_SYSTEM_NAME}" STREQUAL "Switch")
-    add_library(xlua STATIC
-        ${LUA_CORE}
-        ${LUA_LIB}
-        ${XLUA_CORE}
-        ${THIRDPART_SRC}
-    )
-    target_compile_options(xlua PRIVATE -m64 -mcpu=cortex-a57+fp+simd+crypto+crc -fno-common -fno-short-enums -ffunction-sections -fdata-sections -fPIC -fms-extensions)
-else ( )
-    add_library(xlua SHARED
-        ${LUA_CORE}
-        ${LUA_LIB}
-        ${LUA_SOCKET}
-        ${XLUA_CORE}
-        ${THIRDPART_SRC}
-    )
-endif ( )
-
-if ( WIN32 AND NOT CYGWIN )
-    target_compile_definitions (xlua PRIVATE LUA_BUILD_AS_DLL)
-endif ( )
-
-if (GC64 AND USING_LUAJIT)
-    target_compile_definitions (xlua PRIVATE LUAJIT_ENABLE_GC64)
-endif ()
-
-if (LUAC_COMPATIBLE_FORMAT AND NOT USING_LUAJIT)
-    target_compile_definitions (xlua PRIVATE LUAC_COMPATIBLE_FORMAT)
-endif ()
-
-set_property(
-    SOURCE ${LUA_SOCKET}
-    APPEND
-    PROPERTY COMPILE_DEFINITIONS
-    LUA_COMPAT_APIINTCASTS LUA_LIB _CRT_SECURE_NO_WARNINGS _WINSOCK_DEPRECATED_NO_WARNINGS
-)
-
-if(UINT_ESPECIALLY)
-    ADD_DEFINITIONS(-DUINT_ESPECIALLY)
+	if(ZLIB_ASMS)
+		add_definitions(-DASMV)
+		set_source_files_properties(${ZLIB_ASMS} PROPERTIES LANGUAGE C COMPILE_FLAGS -DNO_UNDERLINE)
+	endif()
 endif()
 
 if(MSVC)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    if(ASM686)
+		ENABLE_LANGUAGE(ASM_MASM)
+        set(ZLIB_ASMS
+			contrib/masmx86/inffas32.asm
+			contrib/masmx86/match686.asm
+		)
+    elseif (AMD64)
+		ENABLE_LANGUAGE(ASM_MASM)
+        set(ZLIB_ASMS
+			contrib/masmx64/gvmat64.asm
+			contrib/masmx64/inffasx64.asm
+		)
+    endif()
+
+	if(ZLIB_ASMS)
+		add_definitions(-DASMV -DASMINF)
+	endif()
 endif()
 
-if ( WIN32 AND NOT CYGWIN )
-    if (USING_LUAJIT)
-        target_link_libraries(xlua
-            ${CMAKE_SOURCE_DIR}/${LUAJIT_SRC_PATH}/lua51.lib
-            ${ZLIB_LIBRARY}
-            ws2_32
-            ${THIRDPART_LIB} 
-        )
-    else ()
-        target_link_libraries(xlua
-        ${ZLIB_LIBRARY}
-            ws2_32
-            ${THIRDPART_LIB} 
-        )
+# parse the full version number from zlib.h and include in ZLIB_FULL_VERSION
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/zlib.h _zlib_h_contents)
+string(REGEX REPLACE ".*#define[ \t]+ZLIB_VERSION[ \t]+\"([-0-9A-Za-z.]+)\".*"
+    "\\1" ZLIB_FULL_VERSION ${_zlib_h_contents})
+
+if(MINGW)
+    # This gets us DLL resource information when compiling on MinGW.
+    if(NOT CMAKE_RC_COMPILER)
+        set(CMAKE_RC_COMPILER windres.exe)
     endif()
-else ( )
-    if (USING_LUAJIT AND NOT APPLE)
-        target_link_libraries(xlua
-            ${CMAKE_SOURCE_DIR}/${LUAJIT_SRC_PATH}/libluajit.a
-            ${ZLIB_LIBRARY}
-            m
-            ${THIRDPART_LIB} 
-        )
-    else ()
-        target_link_libraries(xlua
-            ${ZLIB_LIBRARY}
-            m
-            ${THIRDPART_LIB} 
-        )
-    endif()
-endif ( )
+
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/zlib1rc.obj
+                       COMMAND ${CMAKE_RC_COMPILER}
+                            -D GCC_WINDRES
+                            -I ${CMAKE_CURRENT_SOURCE_DIR}
+                            -I ${CMAKE_CURRENT_BINARY_DIR}
+                            -o ${CMAKE_CURRENT_BINARY_DIR}/zlib1rc.obj
+                            -i ${CMAKE_CURRENT_SOURCE_DIR}/win32/zlib1.rc)
+    set(ZLIB_DLL_SRCS ${CMAKE_CURRENT_BINARY_DIR}/zlib1rc.obj)
+endif(MINGW)
+
+add_library(zlib SHARED ${ZLIB_SRCS} ${ZLIB_ASMS} ${ZLIB_DLL_SRCS} ${ZLIB_PUBLIC_HDRS} ${ZLIB_PRIVATE_HDRS})
+add_library(zlibstatic STATIC ${ZLIB_SRCS} ${ZLIB_ASMS} ${ZLIB_PUBLIC_HDRS} ${ZLIB_PRIVATE_HDRS})
+set_target_properties(zlib PROPERTIES DEFINE_SYMBOL ZLIB_DLL)
+set_target_properties(zlib PROPERTIES SOVERSION 1)
+
+if(NOT CYGWIN)
+    # This property causes shared libraries on Linux to have the full version
+    # encoded into their final filename.  We disable this on Cygwin because
+    # it causes cygz-${ZLIB_FULL_VERSION}.dll to be created when cygz.dll
+    # seems to be the default.
+    #
+    # This has no effect with MSVC, on that platform the version info for
+    # the DLL comes from the resource file win32/zlib1.rc
+    set_target_properties(zlib PROPERTIES VERSION ${ZLIB_FULL_VERSION})
+endif()
+
+if(UNIX)
+    # On unix-like platforms the library is almost always called libz
+   set_target_properties(zlib zlibstatic PROPERTIES OUTPUT_NAME z)
+   if(NOT APPLE)
+     set_target_properties(zlib PROPERTIES LINK_FLAGS "-Wl,--version-script,\"${CMAKE_CURRENT_SOURCE_DIR}/zlib.map\"")
+   endif()
+elseif(BUILD_SHARED_LIBS AND WIN32)
+    # Creates zlib1.dll when building shared library version
+    set_target_properties(zlib PROPERTIES SUFFIX "1.dll")
+endif()
+
+if(NOT SKIP_INSTALL_LIBRARIES AND NOT SKIP_INSTALL_ALL )
+    install(TARGETS zlib zlibstatic
+        RUNTIME DESTINATION "${INSTALL_BIN_DIR}"
+        ARCHIVE DESTINATION "${INSTALL_LIB_DIR}"
+        LIBRARY DESTINATION "${INSTALL_LIB_DIR}" )
+endif()
+if(NOT SKIP_INSTALL_HEADERS AND NOT SKIP_INSTALL_ALL )
+    install(FILES ${ZLIB_PUBLIC_HDRS} DESTINATION "${INSTALL_INC_DIR}")
+endif()
+if(NOT SKIP_INSTALL_FILES AND NOT SKIP_INSTALL_ALL )
+    install(FILES zlib.3 DESTINATION "${INSTALL_MAN_DIR}/man3")
+endif()
+if(NOT SKIP_INSTALL_FILES AND NOT SKIP_INSTALL_ALL )
+    install(FILES ${ZLIB_PC} DESTINATION "${INSTALL_PKGCONFIG_DIR}")
+endif()
+
+#============================================================================
+# Example binaries
+#============================================================================
+
+add_executable(example test/example.c)
+target_link_libraries(example zlib)
+add_test(example example)
+
+add_executable(minigzip test/minigzip.c)
+target_link_libraries(minigzip zlib)
+
+if(HAVE_OFF64_T)
+    add_executable(example64 test/example.c)
+    target_link_libraries(example64 zlib)
+    set_target_properties(example64 PROPERTIES COMPILE_FLAGS "-D_FILE_OFFSET_BITS=64")
+    add_test(example64 example64)
+
+    add_executable(minigzip64 test/minigzip.c)
+    target_link_libraries(minigzip64 zlib)
+    set_target_properties(minigzip64 PROPERTIES COMPILE_FLAGS "-D_FILE_OFFSET_BITS=64")
+endif()
