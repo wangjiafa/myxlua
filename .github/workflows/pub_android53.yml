@@ -58,4 +58,4 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./lua53_master.tgz
           asset_name: lua53_master.tgz
-          asset_content_type: application/tgz
+          asset_content_type: application/tgz 
