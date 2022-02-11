@@ -22,7 +22,6 @@ jobs:
         run: |
           sudo apt install gcc-multilib
           sudo chmod ugo+rwx -R ./
-          ./make_android_luajit.sh
           ./make_android_luajit_arm64.sh
       - name: UploadJit
         uses: actions/upload-artifact@v2
