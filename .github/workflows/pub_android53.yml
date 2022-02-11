@@ -20,6 +20,7 @@ jobs:
           ANDROID_NDK_HOME=$(pwd)/android-ndk-r15c
       - name: Build
         run: |
+          sudo chmod ugo+rwx -R ./
           ./make_android_lua53.sh
       - name: Upload53
         uses: actions/upload-artifact@v2
