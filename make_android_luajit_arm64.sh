@@ -1,4 +1,3 @@
-echo "xxxxxxxxxxxxxxx"
 if [ -z "$ANDROID_NDK" ]; then
     export ANDROID_NDK=~/android-ndk-r15c
 fi
