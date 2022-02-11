@@ -37,22 +37,10 @@ jobs:
         with:
           name: plugin_luajit
           path: plugin_luajit/
-          
-      - uses: actions/download-artifact@v1
-        with:
-          name: plugin_lua53
-          path: plugin_lua53/
-          
-      - uses: actions/download-artifact@v1
-        with:
-          name: plugin_lua54
-          path: plugin_lua54/
-          
+                
       - name: Create Release Asset
         run: |
           cd plugin_luajit/ && tar cvfz ../luajit_master.tgz Plugins && cd -
-          cd plugin_lua53/ && tar cvfz ../lua53_master.tgz Plugins && cd -
-          cd plugin_lua54/ && tar cvfz ../lua54_master.tgz Plugins && cd -
           
       - name: Create Release
         id: create_release
@@ -74,26 +62,4 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./luajit_master.tgz
           asset_name: luajit_master.tgz
-          asset_content_type: application/tgz
-          
-      - name: Upload lua53 Plugins
-        #id: upload-release-asset 
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./lua53_master.tgz
-          asset_name: lua53_master.tgz
-          asset_content_type: application/tgz
-          
-      - name: Upload lua54 Plugins
-        #id: upload-release-asset 
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./lua54_master.tgz
-          asset_name: lua54_master.tgz
           asset_content_type: application/tgz
