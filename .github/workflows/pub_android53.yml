@@ -25,7 +25,7 @@ jobs:
       - name: Upload53
         uses: actions/upload-artifact@v2
         with:
-          path: ./build/plugin_lua53/**/*
+          path: ./plugin_lua53/**/*
           name: plugin_lua53   
   publish:
     runs-on: ubuntu-latest
