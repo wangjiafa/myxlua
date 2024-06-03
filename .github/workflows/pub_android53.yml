@@ -37,15 +37,15 @@ jobs:
           path: plugin_lua53/
       - name: Create Release Asset
         run: |
-          cd plugin_lua53/ && tar cvfz ../lua53_master.tgz Plugins && cd -
+          cd plugin_lua53/ && tar cvfz ../lua53_fixFileDescriptor.tgz Plugins && cd -
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: master
-          release_name: Tag:master
+          tag_name: fixFileDescriptor
+          release_name: Tag:fixFileDescriptor
           draft: false
           prerelease: false
 
@@ -56,6 +56,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./lua53_master.tgz
-          asset_name: lua53_master.tgz
+          asset_path: ./lua53_fixFileDescriptor.tgz
+          asset_name: lua53_fixFileDescriptor.tgz
           asset_content_type: application/tgz 
