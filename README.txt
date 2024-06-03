@@ -23,3 +23,6 @@ endif()
 g.编译jit时需要事先编译luajit-2.1.0b3,使用vs2017的开发人员命令行cmd切换到luajit-2.1.0b3/src下执行msvcbuild.bat或msvcbuild_mt.bat
 h.编译windows平台时如果遇到缺少MSBuild.exe错误，需要在VS安装目录下的MsBuild所在的bin目录添加到系统的Path的环境变量里
 i.如果编译windows平台没有出现vs2017的cmake支持说明cmake版本太旧需要升级到3.10.2.4988404及以上
+
+编译macosx遇到The C compiler identification is unknown，No CMAKE_C_COMPILER could be found.，No CMAKE_CXX_COMPILER could be found等错误时下载3.25.2版本的cmake, 
+下载地址https://github.com/Kitware/CMake/releases/tag/v3.25.2

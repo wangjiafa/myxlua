@@ -394,10 +394,7 @@ LUA_API int obj_indexer(lua_State *L) {
     {
     #if LUA_VERSION_NUM > 501
         lua_getuservalue(L, 1);
-    #else
-        lua_getfenv(L,1);
-    #endif
-        if (!lua_isnil(L, -1))
+		if (!lua_isnil(L, -1))
         {
             lua_pushvalue(L, 2);
             lua_gettable(L, -2);
@@ -406,6 +403,26 @@ LUA_API int obj_indexer(lua_State *L) {
                 return 1;
             }
         }
+    #else
+        lua_getfenv(L,1);//obj key env
+		lua_pushvalue(L, LUA_GLOBALSINDEX);//obj key env _G
+		if (lua_rawequal(L, -1, -2)) 
+		{  
+	       //not found//
+	       lua_pop(L, 2);//obj key
+        } 
+		else
+		{
+			lua_pop(L, 1);//obj key env
+			lua_pushvalue(L, 2);//obj key env key
+            lua_gettable(L, -2);//obj key env[key]
+		    if (!lua_isnil(L, -1))
+            {
+                return 1;
+            }
+		}
+    #endif
+       
     }
 	if (!lua_isnil(L, lua_upvalueindex(1))) {
 		lua_pushvalue(L, 2);
@@ -549,22 +566,29 @@ LUA_API int obj_newindexer(lua_State *L) {
     {
         //wjfadd//
     #if LUA_VERSION_NUM > 501
-        lua_getuservalue(L, 1);
-    #else
-        lua_getfenv(L,1);
-    #endif
+        lua_getuservalue(L, 1); //obj key value uservalue
         if (lua_isnil(L, -1))
         {
-            lua_newtable(L);
-           
-        #if LUA_VERSION_NUM > 501
-            lua_setuservalue(L, 1);
-            lua_getuservalue(L, 1);
-        #else
-            lua_setfenv(L, 1);
-            lua_getfenv(L,1);
-        #endif
+            lua_newtable(L);//obj key value nil table
+            lua_setuservalue(L, 1);//obj.uservalue=table   obj key value nil
+            lua_getuservalue(L, 1);//obj key value nil uservalue
         }
+	#else
+		lua_getfenv(L,1);//obj key value env
+        lua_pushvalue(L, LUA_GLOBALSINDEX);//obj key value env _G
+		if (lua_rawequal(L, -1, -2)) 
+		{  
+	       lua_pop(L, 2);//obj key value
+           lua_newtable(L); //obj key value table
+		   lua_setfenv(L, 1);//obj key value
+		   lua_getfenv(L,1);//obj key value env	   
+        } 
+		else
+		{
+		    lua_pop(L, 1);//obj key value env
+		}
+		
+	#endif
         lua_pushvalue(L, 2);
         lua_pushvalue(L, 3);
         lua_settable(L, -3);

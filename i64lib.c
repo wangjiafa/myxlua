@@ -55,65 +55,22 @@ typedef struct {
 } Integer64;
 
 LUALIB_API void lua_pushint64(lua_State* L, int64_t n) {
-	Integer64* p = (Integer64*)lua_newuserdata(L, sizeof(Integer64));
-	p->fake_id = -1;
-	p->data.i64 = n;
-	p->type = Int;
-	lua_rawgeti(L, LUA_REGISTRYINDEX, INT64_META_REF);
-	lua_setmetatable(L, -2);            
+	lua_pushnumber(L, n);
 }
 
 LUALIB_API int lua_isint64(lua_State* L, int pos) {
-	int equal;
-    Integer64* p = (Integer64*)lua_touserdata(L, pos);
-
-    if (p != NULL) {
-        if (lua_getmetatable(L, pos)) {            
-			lua_rawgeti(L, LUA_REGISTRYINDEX, INT64_META_REF);
-            equal = lua_rawequal(L, -1, -2);
-            lua_pop(L, 2);  
-
-            return equal && (p->type == Int);
-        }
-    }
-
-    return 0;
+	lua_isnumber(L, pos);
+    return 1;
 }
 
 LUALIB_API int lua_isint64_or_uint64(lua_State* L, int pos) {
-	int equal;
-    Integer64* p = (Integer64*)lua_touserdata(L, pos);
-
-    if (p != NULL) {
-        if (lua_getmetatable(L, pos)) {            
-			lua_rawgeti(L, LUA_REGISTRYINDEX, INT64_META_REF);
-            equal = lua_rawequal(L, -1, -2);
-            lua_pop(L, 2);  
-
-            return equal;
-        }
-    }
-
-    return 0;
+	lua_isnumber(L, pos);
+	return 1;
 }
 
 LUALIB_API int64_t lua_toint64(lua_State* L, int pos) {
-    int64_t n = 0;
-    int type = lua_type(L, pos);
-    
-    switch(type) {
-        case LUA_TNUMBER:
-            n = (int64_t)lua_tonumber(L, pos);
-            break;
-        case LUA_TUSERDATA:
-		    if (lua_isint64_or_uint64(L, pos)) {
-				n = ((Integer64*)lua_touserdata(L, pos))->data.i64;
-			}
-			break;
-        default:
-            break;
-    }
-    
+    int64_t n = (int64_t)lua_tonumber(L, pos);
+
     return n;
 }
 

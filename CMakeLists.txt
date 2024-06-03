@@ -26,6 +26,9 @@ if(WIN32)
 elseif(APPLE AND NOT IOS AND NOT ANDROID)
     set(ZLIB_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/macos_x86_64_zlib/include)
     set(ZLIB_LIBRARY ${CMAKE_SOURCE_DIR}/macos_x86_64_zlib/lib/libz.1.2.11.dylib)
+
+    list(APPEND ZLIB_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/macos_arm64_zlib/include)
+    list(APPEND ZLIB_LIBRARY ${CMAKE_SOURCE_DIR}/macos_arm64_zlib/lib/libz.1.2.11.dylib)
 else()
     find_package(ZLIB REQUIRED)
 endif()
@@ -138,7 +141,19 @@ endif ()
 #end FFI
 
 
-
+#begin lpack
+if (USING_LUAJIT)
+    set (LPACK_SRC lpack/lpack.cpp)
+    set_property(
+        SOURCE ${LPACK_SRC}
+        APPEND
+        PROPERTY COMPILE_DEFINITIONS
+        LUA_LIB
+    )
+    list(APPEND THIRDPART_INC  lpack)
+    set (THIRDPART_SRC ${THIRDPART_SRC} ${LPACK_SRC})
+endif ()
+#end lpack
 
  #-----------------------------end External Lib-----------------------------#
 
@@ -260,7 +275,7 @@ if (APPLE)
         set_xcode_property (xlua IPHONEOS_DEPLOYMENT_TARGET "7.0" "all")
     else ()
         ADD_DEFINITIONS(-DLUA_USE_MACOSX) #osx platform emmylua debugger must have this option or can not load cpath
-        set(CMAKE_OSX_ARCHITECTURES "x86_64")
+        set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64")
         add_library(xlua MODULE
             ${LUA_CORE}
             ${LUA_LIB}
