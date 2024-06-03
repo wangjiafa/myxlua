@@ -118,7 +118,12 @@ static int dirty(lua_State *L) {
     lua_pop(L, 1);
     return is;
 }
-
+static void myPrint(lua_State *L)
+{
+    int n = lua_gettop(L);
+  
+    lua_pushvalue(L, -1);
+}
 static void collect_fd(lua_State *L, int tab, int itab, 
         fd_set *set, t_socket *max_fd) {
     int i = 1, n = 0;
@@ -138,6 +143,10 @@ static void collect_fd(lua_State *L, int tab, int itab,
         fd = getfd(L);
         if (fd != SOCKET_INVALID) {
             /* make sure we don't overflow the fd_set */
+            lua_getglobal(L, "print");
+            lua_pushstring(L, "fileDescriptor=");
+            lua_pushnumber(L, fd);
+            lua_call(L, 2, 0);
 #ifdef _WIN32
             if (n >= FD_SETSIZE) 
                 luaL_argerror(L, tab, "too many sockets");
