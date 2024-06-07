@@ -109,10 +109,20 @@ void socket_destroy(p_socket ps) {
 ////等待的时间（以毫秒为单位）。0:立即返回 小于0:	无限期等待。
 int socket_select(PollFDSet* fdset, int tm) 
 {
+    lua_getglobal(L, "print");
+    lua_pushstring(L, "xxxxsocket_select11");
+    lua_call(L, 1, 0);
+
     if (fdset->fd_count <= 0)
     {
+        lua_getglobal(L, "print");
+        lua_pushstring(L, "xxxxsocket_select22");
+        lua_call(L, 1, 0);
         return 0;
     }
+    lua_getglobal(L, "print");
+    lua_pushstring(L, "xxxxsocket_select33");
+    lua_call(L, 1, 0);
     return poll(fdset->pollfds, fdset->fd_count, tm);
 }
 
