@@ -63,16 +63,14 @@ int socket_waitfd(p_socket ps, int sw, p_timeout tm) {
 /*-------------------------------------------------------------------------*\
 * Select with int timeout in ms
 \*-------------------------------------------------------------------------*/
-int socket_select(t_socket n, fd_set *rfds, fd_set *wfds, fd_set *efds, 
-        p_timeout tm) {
-    struct timeval tv; 
-    double t = timeout_get(tm);
-    tv.tv_sec = (int) t;
-    tv.tv_usec = (int) ((t - tv.tv_sec) * 1.0e6);
-    if (n <= 0) {
-        Sleep((DWORD) (1000*t));
+//wjftag:https://learn.microsoft.com/zh-cn/windows/win32/api/winsock2/nf-winsock2-wsapoll//
+//等待的时间（以毫秒为单位）。0:立即返回 小于0:	无限期等待。
+int socket_select(PollFDSet* fdset, int tm) {
+    if (fdset->fd_count <= 0)
+    {
         return 0;
-    } else return select(0, rfds, wfds, efds, t >= 0.0? &tv: NULL);
+    }
+    return WSAPoll(fdset->pollfds, fdset->fd_count,tm);
 }
 
 /*-------------------------------------------------------------------------*\

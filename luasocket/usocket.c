@@ -101,18 +101,19 @@ void socket_destroy(p_socket ps) {
 /*-------------------------------------------------------------------------*\
 * Select with timeout control
 \*-------------------------------------------------------------------------*/
-int socket_select(t_socket n, fd_set *rfds, fd_set *wfds, fd_set *efds, 
-        p_timeout tm) {
-    int ret;
-    do {
-        struct timeval tv;
-        double t = timeout_getretry(tm);
-        tv.tv_sec = (int) t;
-        tv.tv_usec = (int) ((t - tv.tv_sec) * 1.0e6);
-        /* timeout = 0 means no wait */
-        ret = select(n, rfds, wfds, efds, t >= 0.0 ? &tv: NULL);
-    } while (ret < 0 && errno == EINTR);
-    return ret;
+//https://man7.org/linux/man-pages/man2/select.2.html
+//WARNING: select() can monitor only file descriptors numbers that
+//    are less than FD_SETSIZE(1024)—an unreasonably low limit for
+//    many modern applications
+//https://man7.org/linux/man-pages/man2/poll.2.html
+////等待的时间（以毫秒为单位）。0:立即返回 小于0:	无限期等待。
+int socket_select(PollFDSet* fdset, int tm) 
+{
+    if (fdset->fd_count <= 0)
+    {
+        return 0;
+    }
+    return poll(fdset->pollfds, fdset->fd_count, tm);
 }
 
 /*-------------------------------------------------------------------------*\

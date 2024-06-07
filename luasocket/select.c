@@ -16,11 +16,9 @@
 \*=========================================================================*/
 static t_socket getfd(lua_State *L);
 static int dirty(lua_State *L);
-static void collect_fd(lua_State *L, int tab, int itab, 
-        fd_set *set, t_socket *max_fd);
-static int check_dirty(lua_State *L, int tab, int dtab, fd_set *set);
-static void return_fd(lua_State *L, fd_set *set, t_socket max_fd, 
-        int itab, int tab, int start);
+static void collect_fd(lua_State *L, int tab, int itab, PollFDSet *set, short events);
+static int check_dirty(lua_State *L, int tab, int dtab, PollFDSet *set);
+static void return_fd(lua_State *L, PollFDSet *set,int itab, int tab, int start);
 static void make_assoc(lua_State *L, int tab);
 static int global_select(lua_State *L);
 
@@ -55,30 +53,33 @@ int select_open(lua_State *L) {
 * Waits for a set of sockets until a condition is met or timeout.
 \*-------------------------------------------------------------------------*/
 static int global_select(lua_State *L) {
-    int rtab, wtab, itab, ret, ndirty;
+    int rtab, wtab, itab, rret,wret, ndirty;
     t_socket max_fd = SOCKET_INVALID;
-    fd_set rset, wset;
-    t_timeout tm;
-    double t = luaL_optnumber(L, 3, -1);
-    FD_ZERO(&rset); FD_ZERO(&wset);
+    PollFDSet rset, wset;
+    int t = (int)luaL_optnumber(L, 3, -1);//毫秒//
+    POLLFD_ZERO(&rset); POLLFD_ZERO(&wset);
     lua_settop(L, 3);
     lua_newtable(L); itab = lua_gettop(L);
     lua_newtable(L); rtab = lua_gettop(L);
     lua_newtable(L); wtab = lua_gettop(L);
-    collect_fd(L, 1, itab, &rset, &max_fd);
-    collect_fd(L, 2, itab, &wset, &max_fd);
+    collect_fd(L, 1, itab, &rset,POLLIN);
+    collect_fd(L, 2, itab, &wset,POLLOUT);
     ndirty = check_dirty(L, 1, rtab, &rset);
-    t = ndirty > 0? 0.0: t;
-    timeout_init(&tm, t, -1);
-    timeout_markstart(&tm);
-    ret = socket_select(max_fd+1, &rset, &wset, NULL, &tm);
-    if (ret > 0 || ndirty > 0) {
-        return_fd(L, &rset, max_fd+1, itab, rtab, ndirty);
-        return_fd(L, &wset, max_fd+1, itab, wtab, 0);
+    t = ndirty > 0? 0: t;
+    rret = socket_select(&rset, t);
+    wret += socket_select(&wset, t);
+   /* lua_getglobal(L,"print");
+    lua_pushstring(L, "xxxxretvalue");
+    lua_pushnumber(L,ret);
+    lua_call(L, 2, 0);*/
+
+    if (rret > 0 || wret >0 || ndirty > 0) {
+        return_fd(L, &rset,itab, rtab, ndirty);
+        return_fd(L, &wset, itab, wtab, 0);
         make_assoc(L, rtab);
         make_assoc(L, wtab);
         return 2;
-    } else if (ret == 0) {
+    } else if (rret == 0 || wret==0) {
         lua_pushstring(L, "timeout");
         return 3;
     } else {
@@ -118,14 +119,9 @@ static int dirty(lua_State *L) {
     lua_pop(L, 1);
     return is;
 }
-static void myPrint(lua_State *L)
+
+static void collect_fd(lua_State *L, int tab, int itab, PollFDSet *set,short events) 
 {
-    int n = lua_gettop(L);
-  
-    lua_pushvalue(L, -1);
-}
-static void collect_fd(lua_State *L, int tab, int itab, 
-        fd_set *set, t_socket *max_fd) {
     int i = 1, n = 0;
     /* nil is the same as an empty table */
     if (lua_isnil(L, tab)) return;
@@ -143,22 +139,12 @@ static void collect_fd(lua_State *L, int tab, int itab,
         fd = getfd(L);
         if (fd != SOCKET_INVALID) {
             /* make sure we don't overflow the fd_set */
-            lua_getglobal(L, "print");
-            lua_pushstring(L, "fileDescriptor=");
-            lua_pushnumber(L, fd);
-            lua_call(L, 2, 0);
-#ifdef _WIN32
-            if (n >= FD_SETSIZE) 
-                luaL_argerror(L, tab, "too many sockets");
-#else
-            if (fd >= FD_SETSIZE) 
-                luaL_argerror(L, tab, "descriptor too large for set size");
-#endif
-            FD_SET(fd, set);
+
+            if (n >= POLLFD_SETSIZE) 
+                luaL_argerror(L, tab, "too many sockets in socket.select");
+
+            POLLFD_SET(fd, set,events);
             n++;
-            /* keep track of the largest descriptor so far */
-            if (*max_fd == SOCKET_INVALID || *max_fd < fd) 
-                *max_fd = fd;
             /* make sure we can map back from descriptor to the object */
             lua_pushnumber(L, (lua_Number) fd);
             lua_pushvalue(L, -2);
@@ -169,7 +155,7 @@ static void collect_fd(lua_State *L, int tab, int itab,
     }
 }
 
-static int check_dirty(lua_State *L, int tab, int dtab, fd_set *set) {
+static int check_dirty(lua_State *L, int tab, int dtab, PollFDSet *set) {
     int ndirty = 0, i = 1;
     if (lua_isnil(L, tab)) 
         return 0;
@@ -186,7 +172,7 @@ static int check_dirty(lua_State *L, int tab, int dtab, fd_set *set) {
             lua_pushnumber(L, ++ndirty);
             lua_pushvalue(L, -2);
             lua_settable(L, dtab);
-            FD_CLR(fd, set);
+            POLLFD_CLR(fd, set);
         }
         lua_pop(L, 1);
         i = i + 1;
@@ -194,11 +180,13 @@ static int check_dirty(lua_State *L, int tab, int dtab, fd_set *set) {
     return ndirty;
 }
 
-static void return_fd(lua_State *L, fd_set *set, t_socket max_fd, 
-        int itab, int tab, int start) {
-    t_socket fd;
-    for (fd = 0; fd < max_fd; fd++) {
-        if (FD_ISSET(fd, set)) {
+static void return_fd(lua_State *L, PollFDSet *set,int itab, int tab, int start) {
+    unsigned int i=0;
+    for (i = 0; i < set->fd_count; i++)
+    {
+        if (set->pollfds[i].revents & set->pollfds[i].events)
+        {
+            t_socket fd = set->pollfds[i].fd;
             lua_pushnumber(L, ++start);
             lua_pushnumber(L, (lua_Number) fd);
             lua_gettable(L, itab);
@@ -226,4 +214,57 @@ static void make_assoc(lua_State *L, int tab) {
         i = i+1;
     }
 }
+//===========================================================================//
+//wjftag 实现一套POLLFD_* 操作来替换FD_*
+void POLLFD_CLR(t_socket fd, PollFDSet* set)
+{
+    unsigned int i;
+    for (i = 0; i < set->fd_count; ++i)
+    {
+        if (set->pollfds[i].fd == fd)
+        {
+            while (i < set->fd_count - 1)
+            {
+                set->pollfds[i] = set->pollfds[i + 1];
+            }
+        }
+        set->fd_count--;
+        break;
+    }
+}
+void POLLFD_SET(t_socket fd, PollFDSet* set, short events)
+{
+    unsigned int i;
+    for (i = 0; i < set->fd_count; ++i)
+    {
+        if (set->pollfds[i].fd == fd)
+        {
+            break;
+        }
+    }
+
+    if (i == set->fd_count && set->fd_count < POLLFD_SETSIZE)
+    {
+        set->pollfds[i].fd = fd;
+        set->pollfds[i].events = events;
+        set->fd_count++;
+    }
+}
+int  POLLFD_ISSET(t_socket fd, PollFDSet* set)
+{
+    unsigned int i;
+    for (i = 0; i < set->fd_count; ++i)
+    {
+        if (set->pollfds[i].fd == fd)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+void POLLFD_ZERO(PollFDSet* set)
+{
+    set->fd_count = 0;
+}
+
 
