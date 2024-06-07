@@ -30,7 +30,7 @@
 /* TCP options (nagle algorithm disable) */
 #include <netinet/tcp.h>
 #include <net/if.h>
-
+#include <poll.h> //wjftag
 #ifndef SO_REUSEPORT
 #define SO_REUSEPORT SO_REUSEADDR
 #endif
