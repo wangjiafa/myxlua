@@ -222,7 +222,8 @@ set ( LUA_SOCKET
     luasocket/select.c
     luasocket/tcp.c
     luasocket/timeout.c
-    luasocket/udp.c 
+    luasocket/udp.c
+    luasocket/socket.c    
 )
 
 if ( WIN32 AND NOT CYGWIN )
