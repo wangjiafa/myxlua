@@ -28,6 +28,20 @@
 \*=========================================================================*/
 #include "timeout.h"
 
+//===========================================================================//
+//wjftag 实现一套POLLFD_* 操作来替换FD_*
+#define POLLFD_SETSIZE 64 //socket.select 的client参数数组不能超过POLLFD_SETSIZE
+typedef struct PollFDSet
+{
+    unsigned int fd_count;
+    struct pollfd  pollfds[POLLFD_SETSIZE];
+} PollFDSet;
+
+void POLLFD_CLR(t_socket fd, PollFDSet* set);
+void POLLFD_SET(t_socket fd, PollFDSet* set, short events);
+int  POLLFD_ISSET(t_socket fd, PollFDSet* set);
+void POLLFD_ZERO(PollFDSet* set);
+//===========================================================================//
 /* we are lazy... */
 typedef struct sockaddr SA;
 
@@ -48,8 +62,7 @@ void socket_setnonblocking(p_socket ps);
 void socket_setblocking(p_socket ps);
 
 int socket_waitfd(p_socket ps, int sw, p_timeout tm);
-int socket_select(t_socket n, fd_set *rfds, fd_set *wfds, fd_set *efds, 
-        p_timeout tm);
+int socket_select(PollFDSet* fdset, int tm);
 
 int socket_connect(p_socket ps, SA *addr, socklen_t addr_len, p_timeout tm); 
 int socket_create(p_socket ps, int domain, int type, int protocol);
