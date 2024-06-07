@@ -66,8 +66,8 @@ static int global_select(lua_State *L) {
     collect_fd(L, 2, itab, &wset,POLLOUT);
     ndirty = check_dirty(L, 1, rtab, &rset);
     t = ndirty > 0? 0: t;
-    rret = socket_select(&rset, t);
-    wret += socket_select(&wset, t);
+    rret = socket_select(&rset, t,L);
+    wret += socket_select(&wset, t,L);
     lua_getglobal(L,"print");
     lua_pushstring(L, "xxxxretvalue");
     lua_pushnumber(L, rret);
