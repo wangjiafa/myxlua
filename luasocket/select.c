@@ -21,7 +21,7 @@ static int check_dirty(lua_State *L, int tab, int dtab, PollFDSet *set);
 static void return_fd(lua_State *L, PollFDSet *set,int itab, int tab, int start);
 static void make_assoc(lua_State *L, int tab);
 static int global_select(lua_State *L);
-
+static int revents_count(PollFDSet *set);//wjftag//
 /* functions in library namespace */
 static luaL_Reg func[] = {
     {"select", global_select},
@@ -74,7 +74,16 @@ static int global_select(lua_State *L) {
     lua_pushnumber(L, wret);
     lua_call(L, 3, 0);
 
-    if (rret > 0 || wret >0 || ndirty > 0) {
+    int r_count=revents_count(&rset);
+    int w_count = revents_count(&wset);
+    lua_getglobal(L, "print");
+    lua_pushstring(L, "xxxxrevents count=");
+    lua_pushnumber(L, r_count);
+    lua_pushnumber(L, w_count);
+    lua_call(L, 3, 0);
+
+
+    if (r_count>0 || w_count>0) {
         return_fd(L, &rset,itab, rtab, ndirty);
         return_fd(L, &wset, itab, wtab, 0);
         make_assoc(L, rtab);
@@ -216,3 +225,17 @@ static void make_assoc(lua_State *L, int tab) {
     }
 }
 
+//wjftag//
+//android 上poll 虽然revents=4 但是返回值一直是0. 利用这个方法来判断是否发送了指定的事件//
+static int revents_count(PollFDSet *set) 
+{
+    int count = 0;
+    for (unsigned int i = 0; i < set->fd_count; i++)
+    {
+        if (set->pollfds[i].revents & set->pollfds[i].events)
+        {
+            count++;
+        }
+    }
+    return count;
+}
