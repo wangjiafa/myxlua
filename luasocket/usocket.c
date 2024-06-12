@@ -126,7 +126,7 @@ int socket_select(PollFDSet* fdset, int tm,lua_State *L)
     lua_getglobal(L, "print");
 
     char buff[64];
-    sprintf(buff,"xxxxsocket_select44 fd=%d,events=%d,fdcount=%d", fdset->pollfds[0].fd, fdset->pollfds[0].events,fdset->fd_count)
+    sprintf(buff, "xxxxsocket_select44 fd=%d,events=%d,fdcount=%d", fdset->pollfds[0].fd, fdset->pollfds[0].events, fdset->fd_count);
     lua_pushstring(L, "xxxxsocket_select33");
     lua_call(L, 1, 0);
     return poll(fdset->pollfds, fdset->fd_count, tm);
