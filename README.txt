@@ -8,6 +8,8 @@
 
 
 1.编译XLua源码注意事项
+注意：android 编译坑比较多，不要用下面的方式。使用https://github.com/wangjiafa/myxlua 的Action编译，修改任意内容即可触发编译，编译完后自己到release下下载即可。
+
 a.一定要使用:android-ndk-r10e,下载地址:https://developer.android.google.cn/ndk/downloads/older_releases
 b.通过android studio下载SDK platform(android版本是2.3):android-9
 c.通过android studio下载cmake:3.10.2.4988404
