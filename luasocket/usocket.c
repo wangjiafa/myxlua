@@ -107,7 +107,7 @@ void socket_destroy(p_socket ps) {
 //    many modern applications
 //https://man7.org/linux/man-pages/man2/poll.2.html
 ////等待的时间（以毫秒为单位）。0:立即返回 小于0:	无限期等待。
-int socket_select(PollFDSet* fdset, int tm,lua_State *L)
+int socket_select(PollFDSet* fdset, int tm)
 {
 
     if (fdset->fd_count <= 0)
