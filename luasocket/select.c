@@ -66,22 +66,12 @@ static int global_select(lua_State *L) {
     collect_fd(L, 2, itab, &wset,POLLOUT);
     ndirty = check_dirty(L, 1, rtab, &rset);
     t = ndirty > 0? 0: t;
-    rret = socket_select(&rset, t,L);
-    wret += socket_select(&wset, t,L);
-    lua_getglobal(L,"print");
-    lua_pushstring(L, "xxxxrevents");
-    lua_pushnumber(L, wset.pollfds[0].revents);
-    lua_pushnumber(L, wret);
-    lua_call(L, 3, 0);
+    //监听socket状态//
+    socket_select(&rset, t);
+    socket_select(&wset, t);
 
     int r_count=revents_count(&rset);
     int w_count = revents_count(&wset);
-    lua_getglobal(L, "print");
-    lua_pushstring(L, "xxxxrevents count=");
-    lua_pushnumber(L, r_count);
-    lua_pushnumber(L, w_count);
-    lua_call(L, 3, 0);
-
 
     if (r_count>0 || w_count>0) {
         return_fd(L, &rset,itab, rtab, ndirty);
@@ -89,7 +79,7 @@ static int global_select(lua_State *L) {
         make_assoc(L, rtab);
         make_assoc(L, wtab);
         return 2;
-    } else if (rret == 0 || wret==0) {
+    } else if (r_count == 0 || w_count ==0) {
         lua_pushstring(L, "timeout");
         return 3;
     } else {
@@ -101,6 +91,7 @@ static int global_select(lua_State *L) {
 /*=========================================================================*\
 * Internal functions
 \*=========================================================================*/
+//client:getfd()
 static t_socket getfd(lua_State *L) {
     t_socket fd = SOCKET_INVALID;
     lua_pushstring(L, "getfd");
@@ -130,6 +121,7 @@ static int dirty(lua_State *L) {
     return is;
 }
 
+//检查socket.select传进来的参数的fd值
 static void collect_fd(lua_State *L, int tab, int itab, PollFDSet *set,short events) 
 {
     int i = 1, n = 0;
@@ -156,6 +148,7 @@ static void collect_fd(lua_State *L, int tab, int itab, PollFDSet *set,short eve
             POLLFD_SET(fd, set,events);
             n++;
             /* make sure we can map back from descriptor to the object */
+            //tab[fd]=client
             lua_pushnumber(L, (lua_Number) fd);
             lua_pushvalue(L, -2);
             lua_settable(L, itab);
@@ -190,6 +183,7 @@ static int check_dirty(lua_State *L, int tab, int dtab, PollFDSet *set) {
     return ndirty;
 }
 
+//把socket.select 或者poll 返回的fd保存起来//
 static void return_fd(lua_State *L, PollFDSet *set,int itab, int tab, int start) {
     unsigned int i=0;
     for (i = 0; i < set->fd_count; i++)
@@ -205,6 +199,7 @@ static void return_fd(lua_State *L, PollFDSet *set,int itab, int tab, int start)
     }
 }
 
+//生成socket.select的返回值//
 static void make_assoc(lua_State *L, int tab) {
     int i = 1, atab;
     lua_newtable(L); atab = lua_gettop(L);

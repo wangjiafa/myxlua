@@ -19,8 +19,6 @@
 #else
 #include "usocket.h"
 #endif
-#include "lua.h"
-#include "lauxlib.h"
 /*=========================================================================*\
 * The connect and accept functions accept a timeout and their
 * implementations are somewhat complicated. We chose to move
@@ -63,7 +61,7 @@ void socket_setnonblocking(p_socket ps);
 void socket_setblocking(p_socket ps);
 
 int socket_waitfd(p_socket ps, int sw, p_timeout tm);
-int socket_select(PollFDSet* fdset, int tm, lua_State *L);
+int socket_select(PollFDSet* fdset, int tm);
 
 int socket_connect(p_socket ps, SA *addr, socklen_t addr_len, p_timeout tm); 
 int socket_create(p_socket ps, int domain, int type, int protocol);
